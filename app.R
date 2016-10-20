@@ -39,7 +39,7 @@ ui <- shinyUI(fluidPage(
         
         # Specification of range within an interval
         sliderInput("range_age", "Range age:",
-                    min = 1, max = 90, value = c(1,90)),
+                    min = 0, max = 90, value = c(0,90)),
         sliderInput("range_year", "Range year:",
                     min = 1921, max = 2011 , value = c(1970,2011))
       ),
@@ -48,7 +48,7 @@ ui <- shinyUI(fluidPage(
       # Show a plot of the generated distribution
       mainPanel(
         tabsetPanel(type = "tabs", 
-                    tabPanel("Ranking", tableOutput("table")),
+                    tabPanel("Ranking", dataTableOutput("tabla")),
                     tabPanel("Death Rates", plotOutput("improvement_rates")), 
                     tabPanel("LC - Parameters", plotOutput("lc")), 
                     tabPanel("LC - Residuals", plotOutput("lc_residuals")), 
@@ -63,6 +63,52 @@ ui <- shinyUI(fluidPage(
 # Define server logic required to draw a histogram
 server <- shinyServer(function(input, output) {
   
+    output$tabla = renderDataTable({
+      AUSdata <- hmd.mx(country = input$country_input, username = input$username_input, password = input$password_input)
+      # Extract men data
+      #load("AUSdata.RData")
+      Ext <- AUSdata$pop$male 
+      Dxt <- round(AUSdata$rate$male * Ext)
+      ages <- AUSdata$age     #0-110
+      years <- AUSdata$year   #1921-2011
+      # Define Lee-Carter model
+      LC <- lc()
+      
+      ages.fit <- input$range_age[1]:input$range_age[2]
+      #years <- input$range_year[1]:input$range_year[2]
+      
+      #We now fit the model to data for ages 0-90
+      
+      LCfit <- fit(LC, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
+                   ages.fit = ages.fit)
+      
+      #Define the CBD
+      CBD <- cbd(link = "log")
+      
+      ages.fit <- input$range_age[1]:input$range_age[2]
+      years.fit <- input$range_year[1]:input$range_year[2]
+      
+      CBDfit <- fit(CBD, Dxt = Dxt, Ext = Ext, ages = ages, years = years, ages.fit = ages.fit,
+                    years.fit = years.fit)
+      
+      logverolc<-LCfit$loglik
+      nparlc<-LCfit$npar
+      aiclc<-AIC(LCfit)
+      biclc<-BIC(LCfit)
+      logverocbd<-CBDfit$loglik
+      nparcbd<-CBDfit$npar
+      aiccbd<-AIC(CBDfit)
+      biccbd<-BIC(CBDfit)
+      
+      
+      modelos <- c("Lee Carter","CBD")
+      Maximium_Log_Likelihood <- c(logverolc, logverocbd)
+      Effective_Number_of_Parameters <- c(nparlc,nparcbd)
+      AIC_Rank <- c(aiclc,aiccbd)
+      BIC_Rank <- c(biclc, biccbd)
+      tabla <- data.frame(modelos, Maximium_Log_Likelihood,Effective_Number_of_Parameters,BIC_Rank, AIC_Rank)
+    })
+  
    output$improvement_rates <- renderPlot({
      AUSdata <- hmd.mx(country = input$country_input, username = input$username_input, password = input$password_input)
      # Extract men data
@@ -75,6 +121,7 @@ server <- shinyServer(function(input, output) {
       # generate bins based on input$bins from ui.R
       x    <- faithful[, 2] 
       ages <- input$range_age[1]:input$range_age[2]
+      years<- input$range_year[1]:input$range_year[2]
       #ages <- 0:max_age
       Dxt <- Dxt[as.character(ages), ]
       Ext <- Ext[as.character(ages), ]
@@ -83,18 +130,19 @@ server <- shinyServer(function(input, output) {
       mxt <- Dxt / Ext
       
       #Reduction factors
-      rx_1 <- (mxt[, "2011"]/mxt[, "1921"])^(1/(2011-1921))
-      rx_2 <- (mxt[, "2011"]/mxt[, "1971"])^(1/(2011-1971))
+      rx_1 <- (mxt[, as.character(input$range_year[2])]/mxt[, as.character(input$range_year[1])])^(1/(input$range_year[2]-input$range_year[1]))
+      #rx_1 <- (mxt[, "2011"]/mxt[, "1921"])^(1/(2011-1921))
+      #rx_2 <- (mxt[, "2011"]/mxt[, "1971"])^(1/(2011-1971))
       #Compyute Improvement rates and smooth
       ix_1 <- 1 - rx_1
-      ix_2 <- 1 - rx_2
+      #ix_2 <- 1 - rx_2
       ix_smooth_1 <- fitted(smooth.spline(ages, ix_1))
-      ix_smooth_2 <- fitted(smooth.spline(ages, ix_2))
+      #ix_smooth_2 <- fitted(smooth.spline(ages, ix_2))
       
-        plot(ages, ix_1, type = "l", main = "Improvement rates AUS")
-        lines(ages, ix_smooth_1, col = "blue", lwd = 2)
-        lines(ages, ix_2)
-        lines(ages, ix_smooth_2, col = "red", lwd = 2)
+      plot(ages, ix_1, type = "l", main = "Improvement rates AUS")
+      lines(ages, ix_smooth_1, col = "blue", lwd = 2)
+      #lines(ages, ix_2)
+      #lines(ages, ix_smooth_2, col = "red", lwd = 2)
       
    })
    output$lc <- renderPlot({
@@ -108,15 +156,15 @@ server <- shinyServer(function(input, output) {
      # Define Lee-Carter model
      LC <- lc()
      
-     ages <- input$range_age[1]:input$range_age[2]
-     years <- input$range_year[1]:input$range_year[2]
+     ages.fit <- input$range_age[1]:input$range_age[2]
+     #years <- input$range_year[1]:input$range_year[2]
      
      #We now fit the model to data for ages 0-90
      
-     LCfit_0_90 <- fit(LC, Dxt = Dxt, Ext = Ext, ages = ages, years = years)
-     LCres_0_90 <- residuals(LCfit_0_90)
+     LCfit <- fit(LC, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
+                  ages.fit = ages.fit)
      #d. Plot the estimated parameter of the Lee-Carter model and discuss their interpretation.
-     plot(LCfit_0_90)
+     plot(LCfit)
    })
    
    output$lc_residuals <- renderPlot({
@@ -129,16 +177,17 @@ server <- shinyServer(function(input, output) {
      years <- AUSdata$year   #1921-2011
      # Define Lee-Carter model
      LC <- lc()
-     ages <- input$range_age[1]:input$range_age[2]
-     years <- input$range_year[1]:input$range_year[2]
+     ages.fit <- input$range_age[1]:input$range_age[2]
+     years.fit <- input$range_year[1]:input$range_year[2]
      
      #We now fit the model to data for ages 0-90
      
-     LCfit_0_90 <- fit(LC, Dxt = Dxt, Ext = Ext, ages = ages, years = years)
-     LCres_0_90 <- residuals(LCfit_0_90)
+     LCfit <- fit(LC, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
+                  ages.fit = ages.fit)
+     LCres <- residuals(LCfit)
      
-     plot(LCres_0_90)
-     plot(LCres_0_90, type = "colourmap", reslim = c(-4,4))
+     plot(LCres)
+     plot(LCres, type = "colourmap", reslim = c(-4,4))
    })
    
    output$cbd <- renderPlot({
@@ -189,4 +238,3 @@ server <- shinyServer(function(input, output) {
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
