@@ -2,10 +2,12 @@
 # This is a Shiny web application. You can run the application by clicking
 # the 'Run App' button above.
 #
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
+# by Esteban Higuita Garcia, ehiguita@eafit.edu.co
+# student Mathematical Engeneering in EAFIT University
+# MEDELLIN, COLOMBIA
+# Tutors: 
+# Fransisco Zuluaga, EAFIT University COLOMBIA
+# Andres Villegas, UNSW AUSTRALIA
 
 library(rgl)
 library(rainbow)
@@ -22,6 +24,7 @@ library(fields)
 library(StMoMo)
 library(shiny)
 
+
 #General settings
 Dxt <- EWMaleData$Dxt
 Ext <- EWMaleData$Ext
@@ -35,6 +38,22 @@ APC <- apc()
 M7 <- m7(link = "log")
 RH <- rh(link = "logit",  cohortAgeFun = "1")
 #Falta PLAT
+
+nulls_models <- c("CBD" = NULL,
+                  "Lee Carter" = NULL,
+                  "APC" = NULL,
+                  "M7" = NULL,
+                  "RH" = NULL)
+
+mFit <- nulls_models
+
+i_aic <- nulls_models
+
+i_bic <- nulls_models
+
+i_logvero <- nulls_models
+
+i_npar <- nulls_models
 
 # Define UI for application that draws a histogram
 ui <- shinyUI(fluidPage(
@@ -64,333 +83,302 @@ ui <- shinyUI(fluidPage(
         )
       ),
       
-      radioButtons("m1", "Choose Model 1:",
-                   c("Lee Carter" = "LC",
-                     "CBD" = "CBD",
-                     "APC" = "APC",
-                     "M7" = "M7",
-                     "RH" = "RH")),
-      
-      radioButtons("m2", "Choose Model 2:",
-                   c("CBD" = "CBD",
-                     "Lee Carter" = "LC",
-                     "APC" = "APC",
-                     "M7" = "M7",
-                     "RH" = "RH")),
+      checkboxGroupInput("models", "Input checkbox",
+                         c("CBD" = "CBD",
+                           "Lee Carter" = "LC",
+                           "APC" = "APC",
+                           "M7" = "M7",
+                           "RH" = "RH")),
       
       
       # Specification of range within an interval
       sliderInput("range_age", "Range age:",
                   min = range(ages)[1], max = range(ages)[2], value = c(mean(ages),range(ages)[2])),
       sliderInput("range_year", "Range year:",
-                  min = range(years)[1], max = range(years)[2] , value = c(mean(years),range(ages)[2]))
+                  min = range(years)[1], max = range(years)[2] , value = c(mean(years),range(ages)[2])),
+      checkboxInput("a_c", "Advaced configuration", FALSE),
+      conditionalPanel(
+        condition = "input.a_c",
+        sliderInput("h_input","Year ahead central projections of the period indexes",
+                    min = 0, max = 200, value = 50),
+        h5("Specification ARIMA model"),
+        textInput("p_input", "p",placeholder = 1),
+        textInput("d_input","d", placeholder = 1),
+        textInput("q_input","q",placeholder = 0),
+        textInput("n_sim_input","Number of simulations",
+                  value = 500),
+        textInput("seed_input","Set seed", value = 1234)
+      )
+      #,submitButton("Submit")
     ),
     
     
     # Show a plot of the generated distribution
     mainPanel(
-      conditionalPanel(
-        condition = "input.data == 'mortality'",
-        tabsetPanel(type = "tabs", 
-                    tabPanel("Ranking", dataTableOutput("mtabla")),
-                    tabPanel(" Parameters",
-                             fluidRow(
-                               column(8, h3("Model 1"), plotOutput("mplotparametersm1")),
-                               column(12, h3("Model 2"), plotOutput("mplotparametersm2"))
-                             )),
-                    tabPanel("Residuals",
-                             fluidRow(
-                               column(8,  h3("Model 1"),plotOutput("mplotresidualsm1")),
-                               column(12, h3("Model 2"),plotOutput("mplotresidualsm2"))
-                             ))
-                    
-        )
-      ),
-      conditionalPanel(
-        condition = "input.data == 'default'",
         tabsetPanel(type = "tabs", 
                     tabPanel("Ranking", dataTableOutput("tabla")),
                     tabPanel(" Parameters",
                              fluidRow(
-                               column(8, h3("Model 1"), plotOutput("plotparametersm1")),
-                               column(12, h3("Model 2"), plotOutput("plotparametersm2"))
+                               uiOutput("plotsParameters")
+                               
                              )),
                     tabPanel("Residuals",
                              fluidRow(
-                               column(8,  h3("Model 1"),plotOutput("plotresidualsm1")),
-                               column(12, h3("Model 2"),plotOutput("plotresidualsm2"))
+                               uiOutput("plotsResiduals")
+                             )),
+                    tabPanel("Forecast",
+                             fluidRow(
+                               uiOutput("plotsForecast")
+                             )),
+                    tabPanel("Simulate",
+                             fluidRow(
+                               uiOutput("plotsSimulate")
                              ))
-                    
         )
       )
       
     )
   )
 )
-)
 
 
-# Define server logic required to draw a histogram
 server <- shinyServer(function(input, output) {
   
   #Default
   output$tabla = renderDataTable({
+    
+    
+    i_models <- input$models
     ages.fit <- input$range_age[1]:input$range_age[2]
     years.fit <- input$range_year[1]:input$range_year[2]
+    for(i_model in i_models){
+      model <- switch(i_model,
+                      LC = LC,
+                      CBD = CBD,
+                      M7 = M7,
+                      APC = APC,
+                      RH = Rh,
+                      LC)
+      fitModel <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
+                      ages.fit = ages.fit)
+      mFit[i_model] <- fitModel
+      i_aic[i_model] <- AIC(fitModel)
+      i_bic[i_model] <- BIC(fitModel)
+      i_npar[i_model] <- fitModel$npar
+      i_logvero[i_model] <- fitModel$loglik
+    }
     
-    #We now fit the model to data for ages 0-90
+    tabla <- data.frame(i_models,unname(i_logvero),unname(i_npar),unname(i_bic), unname(i_aic))
+    #tabla <- data.frame(i_models,i_aic)
     
-    LCfit <- fit(LC, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                 ages.fit = ages.fit, years.fit = years.fit)
-    
-    #Define the CBD
-    CBD <- cbd(link = "log")
-    
-    ages.fit <- input$range_age[1]:input$range_age[2]
-    years.fit <- input$range_year[1]:input$range_year[2]
-    
-    CBDfit <- fit(CBD, Dxt = Dxt, Ext = Ext, ages = ages, years = years, ages.fit = ages.fit,
-                  years.fit = years.fit)
-    
-    logverolc<-LCfit$loglik
-    nparlc<-LCfit$npar
-    aiclc<-AIC(LCfit)
-    biclc<-BIC(LCfit)
-    logverocbd<-CBDfit$loglik
-    nparcbd<-CBDfit$npar
-    aiccbd<-AIC(CBDfit)
-    biccbd<-BIC(CBDfit)
-    
-    
-    modelos <- c("Lee Carter","CBD")
-    Maximium_Log_Likelihood <- c(logverolc, logverocbd)
-    Effective_Number_of_Parameters <- c(nparlc,nparcbd)
-    AIC_Rank <- c(aiclc,aiccbd)
-    BIC_Rank <- c(biclc, biccbd)
-    tabla <- data.frame(modelos, Maximium_Log_Likelihood,Effective_Number_of_Parameters,BIC_Rank, AIC_Rank)
-  })
-  output$plotparametersm1 <- renderPlot({
-    model <- switch(input$m1,
-                    LC = LC,
-                    CBD = CBD,
-                    M7 = M7,
-                    APC = APC,
-                    RH = Rh,
-                    LC)
-    
-    ages.fit <- input$range_age[1]:input$range_age[2]
-    years.fit <- input$range_year[1]:input$range_year[2]
-    
-    #We now fit the model to data for ages 0-90
-    
-    mFit <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                ages.fit = ages.fit,years.fit = years.fit)
-    #d. Plot the estimated parameter of the Lee-Carter model and discuss their interpretation.
-    plot(mFit)
-  })
-  output$plotparametersm2 <- renderPlot({
-    model <- switch(input$m2,
-                    LC = LC,
-                    CBD = CBD,
-                    M7 = M7,
-                    APC = APC,
-                    RH = Rh,
-                    LC)
-    
-    ages.fit <- input$range_age[1]:input$range_age[2]
-    years.fit <- input$range_year[1]:input$range_year[2]
-    
-    #We now fit the model to data for ages 0-90
-    
-    mFit <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                ages.fit = ages.fit,years.fit = years.fit)
-    #d. Plot the estimated parameter of the Lee-Carter model and discuss their interpretation.
-    plot(mFit)
-  })
-  output$plotresidualsm1 <- renderPlot({
-    model <- switch(input$m1,
-                    LC = LC,
-                    CBD = CBD,
-                    M7 = M7,
-                    APC = APC,
-                    RH = Rh,
-                    CBD)
-    
-    ages.fit <- input$range_age[1]:input$range_age[2]
-    years.fit <- input$range_year[1]:input$range_year[2]
-    
-    #We now fit the model to data for ages 0-90
-    
-    mFit <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                ages.fit = ages.fit)
-    mRes <- residuals(mFit)
-    
-    plot(mRes)
-    plot(mRes, type = "colourmap", reslim = c(-4,4))
-  })
-  output$plotresidualsm2 <- renderPlot({
-    model <- switch(input$m2,
-                    LC = LC,
-                    CBD = CBD,
-                    M7 = M7,
-                    APC = APC,
-                    RH = Rh,
-                    CBD)
-    
-    ages.fit <- input$range_age[1]:input$range_age[2]
-    years.fit <- input$range_year[1]:input$range_year[2]
-    
-    #We now fit the model to data for ages 0-90
-    
-    mFit <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                ages.fit = ages.fit)
-    mRes <- residuals(mFit)
-    
-    plot(mRes)
-    plot(mRes, type = "colourmap", reslim = c(-4,4))
   })
   
-  #Mortality
-  output$mtabla = renderDataTable({
-    
-    mortData <- hmd.mx(country = input$country_input, username = input$username_input, password = input$password_input)
-    # Extract men data
-    #load("AUSdata.RData")
-    Ext <- switch(input$gender,
-                  male = mortData$pop$male,
-                  female = mortData$pop$female,
-                  total = mortData$pop$total,
-                  mortData$pop$male)
-    Dxt <- switch(input$gender,
-                  male = round(mortData$rate$male * Ext),
-                  female = round(mortData$rate$female * Ext),
-                  total = round(mortData$rate$total * Ext),
-                  round(mortData$rate$male * Ext))
-    
-    ages <- mortData$age     #0-110
-    years <- mortData$year   #1921-2011
-    
-    ages.fit <- input$range_age[1]:input$range_age[2]
-    years.fit <- input$range_year[1]:input$range_year[2]
-    
-    #We now fit the model to data for ages 0-90
-    
-    LCfit <- fit(LC, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                 ages.fit = ages.fit, years.fit = years.fit)
-    
-    #Define the CBD
-    CBD <- cbd(link = "log")
-    
-    ages.fit <- input$range_age[1]:input$range_age[2]
-    years.fit <- input$range_year[1]:input$range_year[2]
-    
-    CBDfit <- fit(CBD, Dxt = Dxt, Ext = Ext, ages = ages, years = years, ages.fit = ages.fit,
-                  years.fit = years.fit)
-    
-    logverolc<-LCfit$loglik
-    nparlc<-LCfit$npar
-    aiclc<-AIC(LCfit)
-    biclc<-BIC(LCfit)
-    logverocbd<-CBDfit$loglik
-    nparcbd<-CBDfit$npar
-    aiccbd<-AIC(CBDfit)
-    biccbd<-BIC(CBDfit)
-    
-    
-    modelos <- c("Lee Carter","CBD")
-    Maximium_Log_Likelihood <- c(logverolc, logverocbd)
-    Effective_Number_of_Parameters <- c(nparlc,nparcbd)
-    AIC_Rank <- c(aiclc,aiccbd)
-    BIC_Rank <- c(biclc, biccbd)
-    tabla <- data.frame(modelos, Maximium_Log_Likelihood,Effective_Number_of_Parameters,BIC_Rank, AIC_Rank)
+  ### Render Parameters ###
+  plotInput <- reactive({
+    i_models <- input$models
+    total_data <- lapply(i_models, function(i){
+      model <- switch(i,
+                      LC = LC,
+                      CBD = CBD,
+                      M7 = M7,
+                      APC = APC,
+                      RH = Rh,
+                      LC)
+      fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
+          ages.fit = ages.fit)
+    })
+    total_data_r <- lapply(i_models, function(i){
+      model <- switch(i,
+                      LC = LC,
+                      CBD = CBD,
+                      M7 = M7,
+                      APC = APC,
+                      RH = Rh,
+                      LC)
+      residuals(fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
+                    ages.fit = ages.fit))
+    })
+    total_data_f <- lapply(i_models, function(i){
+      model <- switch(i,
+                      LC = LC,
+                      CBD = CBD,
+                      M7 = M7,
+                      APC = APC,
+                      RH = Rh,
+                      LC)
+      forecast(fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
+                   ages.fit = ages.fit),h =input$h_input, gc.order =c(input$p_input, input$d_input, input$q_input))
+    })
+    total_data_s <- lapply(i_models, function(i){
+      set.seed(input$seed_input)
+      model <- switch(i,
+                      LC = LC,
+                      CBD = CBD,
+                      M7 = M7,
+                      APC = APC,
+                      RH = Rh,
+                      LC)
+      simulate(fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
+                   ages.fit = ages.fit), nsim = input$n_sim_input, h =input$h_input)
+    })
+    n_plot <- length(i_models)
+    return (list("n_plot"=n_plot, "total_data"=total_data, "total_data_r"=total_data_r,"total_data_f"= total_data_f,"total_data_s"= total_data_s,  "i_models"=i_models, "years"=years, "age", ages))
   })
-  output$mplotparametersm1 <- renderPlot({
-    mortData <- hmd.mx(country = input$country_input, username = input$username_input, password = input$password_input)
-    # Extract men data
-    #load("AUSdata.RData")
-    Ext <- mortData$pop$male 
-    Dxt <- round(mortData$rate$male * Ext)
-    ages <- mortData$age     #0-110
-    years <- mortData$year   #1921-2011
+  ##### Create divs Parameters######
+  output$plotsParameters <- renderUI({
+    titles <- lapply(1:plotInput()$n_plot, function(i) {
+      h1(paste("Plot Parameters",plotInput()$i_models[i] , sep=" "))
+    }
+    )
+    output_list <- lapply(1:plotInput()$n_plot, function(i) {
+      plotname <- paste("plot",plotInput()$i_models[i] , sep="")
+      plotOutput(plotname, height = 480, width = 700, hover = plotname)
+    })
     
-    model <- switch(input$m1,
-                    LC = LC,
-                    CBD = CBD,
-                    M7 = M7,
-                    APC = APC,
-                    RH = Rh,
-                    LC)
+    list_sort = vector()
+    i <- 1
+    j <- 1
+    while (i<length(titles)+1) {
+      list_sort[j] = titles[i]
+      list_sort[j+1] = output_list[i]
+      i <- i+1
+      j <- j+2
+    }
+    plot_output_list <- list_sort 
     
-    ages.fit <- input$range_age[1]:input$range_age[2]
-    years.fit <- input$range_year[1]:input$range_year[2]
-    
-    #We now fit the model to data for ages 0-90
-    
-    mFit <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                ages.fit = ages.fit,years.fit = years.fit)
-    #d. Plot the estimated parameter of the Lee-Carter model and discuss their interpretation.
-    plot(mFit)
+    do.call(tagList, plot_output_list)
   })
-  output$mplotparametersm2 <- renderPlot({
-    model <- switch(input$m2,
-                    LC = LC,
-                    CBD = CBD,
-                    M7 = M7,
-                    APC = APC,
-                    RH = Rh,
-                    LC)
+  
+  ## --- ##
+  
+  ##### Create divs Residuals######
+  output$plotsResiduals <- renderUI({
+    titles_r <- lapply(1:plotInput()$n_plot, function(i) {
+      h1(paste("Plot Residuals",plotInput()$i_models[i] , sep=" "))
+    }
+    )
+    output_list_r <- lapply(1:plotInput()$n_plot, function(i) {
+      plotname <- paste("plotResidual",plotInput()$i_models[i] , sep="")
+      plotOutput(plotname, height = 480, width = 700)
+    })
     
-    ages.fit <- input$range_age[1]:input$range_age[2]
-    years.fit <- input$range_year[1]:input$range_year[2]
+    list_sort_r = vector()
+    i <- 1
+    j <- 1
+    while (i<length(titles_r)+1) {
+      list_sort_r[j] = titles_r[i]
+      list_sort_r[j+1] = output_list_r[i]
+      i <- i+1
+      j <- j+2
+    }
+    plot_output_list_r <- list_sort_r 
     
-    #We now fit the model to data for ages 0-90
-    
-    mFit <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                ages.fit = ages.fit,years.fit = years.fit)
-    #d. Plot the estimated parameter of the Lee-Carter model and discuss their interpretation.
-    plot(mFit)
+    do.call(tagList, plot_output_list_r)
   })
-  output$mplotresidualsm1 <- renderPlot({
-    model <- switch(input$m1,
-                    LC = LC,
-                    CBD = CBD,
-                    M7 = M7,
-                    APC = APC,
-                    RH = Rh,
-                    CBD)
+  ## --- ##
+  
+  ##### Create divs Forecast######
+  output$plotsForecast <- renderUI({
+    titles <- lapply(1:plotInput()$n_plot, function(i) {
+      h1(paste("Plot Forecast",plotInput()$i_models[i] , sep=" "))
+    }
+    )
+    output_list <- lapply(1:plotInput()$n_plot, function(i) {
+      plotname <- paste("plotForecast",plotInput()$i_models[i] , sep="")
+      plotOutput(plotname, height = 480, width = 700)
+    })
     
-    ages.fit <- input$range_age[1]:input$range_age[2]
-    years.fit <- input$range_year[1]:input$range_year[2]
+    list_sort = vector()
+    i <- 1
+    j <- 1
+    while (i<length(titles)+1) {
+      list_sort[j] = titles[i]
+      list_sort[j+1] = output_list[i]
+      i <- i+1
+      j <- j+2
+    }
+    plot_output_list_f <- list_sort
     
-    #We now fit the model to data for ages 0-90
-    
-    mFit <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                ages.fit = ages.fit)
-    mRes <- residuals(mFit)
-    
-    plot(mRes)
-    plot(mRes, type = "colourmap", reslim = c(-4,4))
+    do.call(tagList, plot_output_list_f)
   })
-  output$mplotresidualsm2 <- renderPlot({
-    model <- switch(input$m2,
-                    LC = LC,
-                    CBD = CBD,
-                    M7 = M7,
-                    APC = APC,
-                    RH = Rh,
-                    CBD)
+  ##### Create divs Simulate######
+  output$plotsSimulate <- renderUI({
+    titles <- lapply(1:plotInput()$n_plot, function(i) {
+      h1(paste("Plot Simulate",plotInput()$i_models[i] , sep=" "))
+    }
+    )
+    output_list <- lapply(1:plotInput()$n_plot, function(i) {
+      plotname <- paste("plotSimulate",plotInput()$i_models[i] , sep="")
+      plotOutput(plotname, height = 480, width = 700)
+    })
+    
+    list_sort = vector()
+    i <- 1
+    j <- 1
+    while (i<length(titles)+1) {
+      list_sort[j] = titles[i]
+      list_sort[j+1] = output_list[i]
+      i <- i+1
+      j <- j+2
+    }
+    plot_output_list_s <- list_sort
+    
+    do.call(tagList, plot_output_list_s)
+  })
+  
+  observe({
+    if(input$data == "mortality"){
+      #Mortality
+      print("entro al if")
+      mortData <- hmd.mx(country = input$country_input, username = input$username_input, password = input$password_input)
+      # Extract men data
+      #load("AUSdata.RData")
+      Ext <- switch(input$gender,
+                    male = mortData$pop$male,
+                    female = mortData$pop$female,
+                    total = mortData$pop$total,
+                    mortData$pop$male)
+      Dxt <- switch(input$gender,
+                    male = round(mortData$rate$male * Ext),
+                    female = round(mortData$rate$female * Ext),
+                    total = round(mortData$rate$total * Ext),
+                    round(mortData$rate$male * Ext))
+      
+      ages <- mortData$age     #0-110
+      years <- mortData$year   #1921-2011
+    }
+    
     
     ages.fit <- input$range_age[1]:input$range_age[2]
     years.fit <- input$range_year[1]:input$range_year[2]
     
-    #We now fit the model to data for ages 0-90
-    
-    mFit <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                ages.fit = ages.fit)
-    mRes <- residuals(mFit)
-    
-    plot(mRes)
-    plot(mRes, type = "colourmap", reslim = c(-4,4))
+    lapply(1:plotInput()$n_plot, function(i){
+      output[[paste("plotResidual", plotInput()$i_models[i], sep="") ]] <- renderPlot({
+        plot(plotInput()$total_data_r[[i]])
+        plot(plotInput()$total_data_r[[i]], type = "colourmap", reslim = c(-4,4))
+      })
+    })
+    lapply(1:plotInput()$n_plot, function(i){
+      output[[paste("plot", plotInput()$i_models[i], sep="") ]] <- renderPlot({
+        plot(plotInput()$total_data[[i]])
+      })
+    })
+    lapply(1:plotInput()$n_plot, function(i){
+      output[[paste("plotForecast", plotInput()$i_models[i], sep="") ]] <- renderPlot({
+        plot(plotInput()$total_data_f[[i]], only.kt = TRUE)
+      })
+    })
+    lapply(1:plotInput()$n_plot, function(i){
+      output[[paste("plotSimulate", plotInput()$i_models[i], sep="") ]] <- renderPlot({
+        plot(plotInput()$total_data[[i]]$years, plotInput()$total_data[[i]]$kt[1,],
+             xlim=c(range(plotInput()$years)[1],range(plotInput()$years)[2]+input$h_input), ylim=c(-65,15),
+             type="l", xlab="year", ylab="kt",
+             main="Period index")
+        matlines(plotInput()$total_data_s[[i]]$kt.s$years, plotInput()$total_data_s[[i]]$kt.s$sim[1,,1:20],
+                 type="l", lty=1)
+        #plot(plotInput()$total_data_s[[i]]$kt.s$years,plotInput()$total_data_s[[i]]$kt.s$sim[1,,1:20])
+      })
+    })
   })
 })
 
