@@ -6,8 +6,13 @@
 # student Mathematical Engeneering in EAFIT University
 # MEDELLIN, COLOMBIA
 # Tutors: 
-# Fransisco Zuluaga, EAFIT University COLOMBIA
+# Francisco Zuluaga, EAFIT University COLOMBIA
 # Andres Villegas, UNSW AUSTRALIA
+
+packages <- c("rgl", "rainbow", "demography", "zoo", "qvcalc", "relimp", "spam", "maps", "gnm", "rootSolve", "fanplot", "fields", "StMoMo", "shiny")
+if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
+  install.packages(setdiff(packages, rownames(installed.packages())))
+}
 
 library(rgl)
 library(rainbow)
@@ -37,7 +42,7 @@ CBD <- cbd(link = "log")
 APC <- apc()
 M7 <- m7(link = "log")
 RH <- rh(link = "logit",  cohortAgeFun = "1")
-#Falta PLAT
+#Missing implement PLAT
 
 nulls_models <- c("CBD" = NULL,
                   "Lee Carter" = NULL,
@@ -59,19 +64,22 @@ i_npar <- nulls_models
 ui <- shinyUI(fluidPage(
   
   # Application title
-  titlePanel("Mortality models"), 
+  h1("Mortality models", style = "color:#2A7BFF", align="center"),
+  img(src="http://www.cepar.edu.au/images/cepar_logo2.png", height = "auto", width = 200),
+  img(src="http://www.eafit.edu.co/SiteCollectionImages/logo_eafit_55.png", height = "auto", width = 200),
   
   # Sidebar with a slider input for number of bins 
   sidebarLayout(
     sidebarPanel(
       
       radioButtons("data", "Choose Input Data",
-                   c("Male Wales data" = "default",
+                   c("Male England and Wales data" = "default",
                      "Input mortality.org data" = "mortality")
       ),
       
       conditionalPanel(
         condition = "input.data == 'mortality'",
+        a(href="http://www.mortality.org/","Mortality"),
         textInput("username_input","User", value = "ehiguita@eafit.edu.co",placeholder = "ehiguita@eafit.edu.co"),
         textInput("password_input","Password", value = "1468543048",placeholder = "1468543048"),
         textInput("country_input","Country", value = "AUS",placeholder = "Australia"),
@@ -115,30 +123,33 @@ ui <- shinyUI(fluidPage(
     
     # Show a plot of the generated distribution
     mainPanel(
-        tabsetPanel(type = "tabs", 
-                    tabPanel("Ranking", dataTableOutput("tabla")),
-                    tabPanel(" Parameters",
-                             fluidRow(
-                               uiOutput("plotsParameters")
-                               
-                             )),
-                    tabPanel("Residuals",
-                             fluidRow(
-                               uiOutput("plotsResiduals")
-                             )),
-                    tabPanel("Forecast",
-                             fluidRow(
-                               uiOutput("plotsForecast")
-                             )),
-                    tabPanel("Simulate",
-                             fluidRow(
-                               uiOutput("plotsSimulate")
-                             ))
-        )
+      tabsetPanel(type = "tabs", 
+                  tabPanel("Ranking", dataTableOutput("tabla")),
+                  tabPanel(" Parameters",
+                           fluidRow(
+                             uiOutput("plotsParameters")
+                             
+                           )),
+                  tabPanel("Residuals",
+                           fluidRow(
+                             uiOutput("plotsResiduals")
+                           )),
+                  tabPanel("Forecast",
+                           fluidRow(
+                             uiOutput("plotsForecast")
+                           )),
+                  tabPanel("Simulate",
+                           fluidRow(
+                             uiOutput("plotsSimulate")
+                           ))
       )
-      
     )
-  )
+    
+  ),
+  a(href="www.linkedin.com/in/estebanhiguita", "by Esteban Higuita G.",align="right"),
+  br(),
+  a(href="#", "Tutors: Francisco Zuluaga, EAFIT University COLOMBIA and Andres Villegas, UNSW AUSTRALIA", align="right")
+)
 )
 
 
@@ -157,7 +168,7 @@ server <- shinyServer(function(input, output) {
                       CBD = CBD,
                       M7 = M7,
                       APC = APC,
-                      RH = Rh,
+                      RH = RH,
                       LC)
       fitModel <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
                       ages.fit = ages.fit)
@@ -167,22 +178,21 @@ server <- shinyServer(function(input, output) {
       i_npar[i_model] <- fitModel$npar
       i_logvero[i_model] <- fitModel$loglik
     }
-    
-    tabla <- data.frame(i_models,unname(i_logvero),unname(i_npar),unname(i_bic), unname(i_aic))
-    #tabla <- data.frame(i_models,i_aic)
-    
+    tabla <- data.frame(Models=i_models,Log_Likelihood=i_logvero,Effective_number_of_parameters=i_npar, BIC = i_bic, AIC = i_aic)
   })
   
   ### Render Parameters ###
   plotInput <- reactive({
     i_models <- input$models
+    ages.fit <- input$range_age[1]:input$range_age[2]
+    years.fit <- input$range_year[1]:input$range_year[2]
     total_data <- lapply(i_models, function(i){
       model <- switch(i,
                       LC = LC,
                       CBD = CBD,
                       M7 = M7,
                       APC = APC,
-                      RH = Rh,
+                      RH = RH,
                       LC)
       fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
           ages.fit = ages.fit)
@@ -193,7 +203,7 @@ server <- shinyServer(function(input, output) {
                       CBD = CBD,
                       M7 = M7,
                       APC = APC,
-                      RH = Rh,
+                      RH = RH,
                       LC)
       residuals(fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
                     ages.fit = ages.fit))
@@ -204,10 +214,10 @@ server <- shinyServer(function(input, output) {
                       CBD = CBD,
                       M7 = M7,
                       APC = APC,
-                      RH = Rh,
+                      RH = RH,
                       LC)
       forecast(fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                   ages.fit = ages.fit),h =input$h_input, gc.order =c(input$p_input, input$d_input, input$q_input))
+                   ages.fit = ages.fit))
     })
     total_data_s <- lapply(i_models, function(i){
       set.seed(input$seed_input)
@@ -216,7 +226,7 @@ server <- shinyServer(function(input, output) {
                       CBD = CBD,
                       M7 = M7,
                       APC = APC,
-                      RH = Rh,
+                      RH = RH,
                       LC)
       simulate(fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
                    ages.fit = ages.fit), nsim = input$n_sim_input, h =input$h_input)
@@ -344,8 +354,54 @@ server <- shinyServer(function(input, output) {
                     total = round(mortData$rate$total * Ext),
                     round(mortData$rate$male * Ext))
       
-      ages <- mortData$age     #0-110
-      years <- mortData$year   #1921-2011
+      ages <- mortData$age     
+      years <- mortData$year   
+      
+      nulls_models <- c("CBD" = NULL,
+                        "Lee Carter" = NULL,
+                        "APC" = NULL,
+                        "M7" = NULL,
+                        "RH" = NULL)
+      
+      mFit <- nulls_models
+      
+      i_aic <- nulls_models
+      
+      i_bic <- nulls_models
+      
+      i_logvero <- nulls_models
+      
+      i_npar <- nulls_models
+    }
+    if(input$data == "default"){
+      Dxt <- EWMaleData$Dxt
+      Ext <- EWMaleData$Ext
+      ages <- EWMaleData$ages 
+      years <- EWMaleData$years 
+      
+      #Define Models
+      LC <- lc()
+      CBD <- cbd(link = "log")
+      APC <- apc()
+      M7 <- m7(link = "log")
+      RH <- rh(link = "logit",  cohortAgeFun = "1")
+      #Missing implement PLAT
+      
+      nulls_models <- c("CBD" = NULL,
+                        "Lee Carter" = NULL,
+                        "APC" = NULL,
+                        "M7" = NULL,
+                        "RH" = NULL)
+      
+      mFit <- nulls_models
+      
+      i_aic <- nulls_models
+      
+      i_bic <- nulls_models
+      
+      i_logvero <- nulls_models
+      
+      i_npar <- nulls_models
     }
     
     
@@ -371,7 +427,7 @@ server <- shinyServer(function(input, output) {
     lapply(1:plotInput()$n_plot, function(i){
       output[[paste("plotSimulate", plotInput()$i_models[i], sep="") ]] <- renderPlot({
         plot(plotInput()$total_data[[i]]$years, plotInput()$total_data[[i]]$kt[1,],
-             xlim=c(range(plotInput()$years)[1],range(plotInput()$years)[2]+input$h_input), ylim=c(-65,15),
+             xlim=c(range(plotInput()$years)[1],range(plotInput()$years)[2]+input$h_input), ylim=range(plotInput()$total_data_s[[i]]$kt.s$sim[1,,1:20],plotInput()$total_data[[i]]$kt[1,]),
              type="l", xlab="year", ylab="kt",
              main="Period index")
         matlines(plotInput()$total_data_s[[i]]$kt.s$years, plotInput()$total_data_s[[i]]$kt.s$sim[1,,1:20],
@@ -384,4 +440,3 @@ server <- shinyServer(function(input, output) {
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
