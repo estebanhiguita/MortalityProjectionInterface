@@ -1,4 +1,4 @@
-#
+# Version 0.1.0
 # This is a Shiny web application. You can run the application by clicking
 # the 'Run App' button above.
 #
@@ -41,7 +41,7 @@ LC <- lc()
 CBD <- cbd(link = "log")
 APC <- apc()
 M7 <- m7(link = "log")
-RH <- rh(link = "logit",  cohortAgeFun = "1")
+RH <- rh(link = "log",  cohortAgeFun = "1",approxConst = TRUE)
 #Missing implement PLAT
 
 nulls_models <- c("CBD" = NULL,
@@ -50,7 +50,11 @@ nulls_models <- c("CBD" = NULL,
                   "M7" = NULL,
                   "RH" = NULL)
 
-mFit <- nulls_models
+mFit <- list("CBD" = NULL,
+          "LC" = NULL,
+          "APC" = NULL,
+          "M7" = NULL,
+          "RH" = NULL)
 
 i_aic <- nulls_models
 
@@ -60,11 +64,11 @@ i_logvero <- nulls_models
 
 i_npar <- nulls_models
 
-# Define UI for application that draws a histogram
+# Define UI for application 
 ui <- shinyUI(fluidPage(
   
   # Application title
-  h1("Mortality models", style = "color:#2A7BFF", align="center"),
+  h1("Stochastic Mortality Modelling Graphics", style = "color:#2A7BFF", align="center"),
   img(src="http://www.cepar.edu.au/images/cepar_logo2.png", height = "auto", width = 200),
   img(src="http://www.eafit.edu.co/SiteCollectionImages/logo_eafit_55.png", height = "auto", width = 200),
   
@@ -152,7 +156,7 @@ ui <- shinyUI(fluidPage(
 )
 )
 
-
+# Define SERVER for application
 server <- shinyServer(function(input, output) {
   
   #Default
@@ -171,8 +175,8 @@ server <- shinyServer(function(input, output) {
                       RH = RH,
                       LC)
       fitModel <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                      ages.fit = ages.fit)
-      mFit[i_model] <- fitModel
+                      ages.fit = ages.fit, years.fit = years.fit)
+      mFit[[i_model]] <<- fitModel
       i_aic[i_model] <- AIC(fitModel)
       i_bic[i_model] <- BIC(fitModel)
       i_npar[i_model] <- fitModel$npar
@@ -186,16 +190,9 @@ server <- shinyServer(function(input, output) {
     i_models <- input$models
     ages.fit <- input$range_age[1]:input$range_age[2]
     years.fit <- input$range_year[1]:input$range_year[2]
-    total_data <- lapply(i_models, function(i){
-      model <- switch(i,
-                      LC = LC,
-                      CBD = CBD,
-                      M7 = M7,
-                      APC = APC,
-                      RH = RH,
-                      LC)
-      fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-          ages.fit = ages.fit)
+    total_data <- lapply(i_models, function(model){
+      print(mFit)
+      mFit[[model]]
     })
     total_data_r <- lapply(i_models, function(i){
       model <- switch(i,
@@ -208,6 +205,8 @@ server <- shinyServer(function(input, output) {
       residuals(fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
                     ages.fit = ages.fit))
     })
+    cat(names(total_data))
+    cat(names(total_data_r))
     total_data_f <- lapply(i_models, function(i){
       model <- switch(i,
                       LC = LC,
@@ -384,7 +383,7 @@ server <- shinyServer(function(input, output) {
       CBD <- cbd(link = "log")
       APC <- apc()
       M7 <- m7(link = "log")
-      RH <- rh(link = "logit",  cohortAgeFun = "1")
+      RH <- rh(link = "log",  cohortAgeFun = "1",approxConst = TRUE)
       #Missing implement PLAT
       
       nulls_models <- c("CBD" = NULL,
