@@ -66,7 +66,7 @@ ui <- shinyUI(fluidPage(
   
   # Application title
   h1("Mortality models", style = "color:#2A7BFF", align="center"),
-  img(src="http://www.cepar.edu.au/images/cepar_logo2.png", height = "auto", width = 200),
+  img(src="http://www.cepar.edu.au/sites/all/themes/bootstrap/logo.png", height = "auto", width = 200),
   img(src="http://www.eafit.edu.co/SiteCollectionImages/logo_eafit_55.png", height = "auto", width = 200),
   
   # Sidebar with a slider input for number of bins 
