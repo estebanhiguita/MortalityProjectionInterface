@@ -9,7 +9,7 @@
 # Francisco Zuluaga, EAFIT University COLOMBIA
 # Andres Villegas, UNSW AUSTRALIA
 
-packages <- c("rgl", "rainbow", "demography", "zoo", "qvcalc", "relimp", "spam", "maps", "gnm", "rootSolve", "fanplot", "fields", "StMoMo", "shiny")
+packages <- c("RColorBrewer","rgl", "rainbow", "demography", "zoo", "qvcalc", "relimp", "spam", "maps", "gnm", "rootSolve", "fanplot", "fields", "StMoMo", "shiny")
 if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
   install.packages(setdiff(packages, rownames(installed.packages())))
 }
@@ -18,6 +18,7 @@ library(rgl)
 library(rainbow)
 library(demography)
 library(zoo)
+library(RColorBrewer)
 library(qvcalc)
 library(relimp)
 library(spam)
