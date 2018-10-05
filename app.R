@@ -98,7 +98,7 @@ ui <- shinyUI(fluidPage(
                            "APC" = "APC",
                            "M7" = "M7",
                            "RH" = "RH",
-                           "ANN" = "ANN")),
+                           "A. Neural Network" = "ANN")),
       
       
       # Specification of range within an interval
@@ -171,14 +171,20 @@ server <- shinyServer(function(input, output) {
                       M7 = M7,
                       APC = APC,
                       RH = RH,
+                      ANN = ANN,
                       LC)
-      fitModel <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
-                      ages.fit = ages.fit)
-      mFit[i_model] <- fitModel
-      i_aic[i_model] <- AIC(fitModel)
-      i_bic[i_model] <- BIC(fitModel)
-      i_npar[i_model] <- fitModel$npar
-      i_logvero[i_model] <- fitModel$loglik
+      if (model == ANN){
+        ## TO DO
+      }
+      else{
+        fitModel <- fit(model, Dxt = Dxt, Ext = Ext, ages = ages, years = years,
+                        ages.fit = ages.fit)
+        mFit[i_model] <- fitModel
+        i_aic[i_model] <- AIC(fitModel)
+        i_bic[i_model] <- BIC(fitModel)
+        i_npar[i_model] <- fitModel$npar
+        i_logvero[i_model] <- fitModel$loglik
+      }
     }
     tabla <- data.frame(Models=i_models,Log_Likelihood=i_logvero,Effective_number_of_parameters=i_npar, BIC = i_bic, AIC = i_aic)
   })
