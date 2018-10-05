@@ -92,12 +92,13 @@ ui <- shinyUI(fluidPage(
         )
       ),
       
-      checkboxGroupInput("models", "Input checkbox",
+      checkboxGroupInput("models", "Select yours models",
                          c("CBD" = "CBD",
                            "Lee Carter" = "LC",
                            "APC" = "APC",
                            "M7" = "M7",
-                           "RH" = "RH")),
+                           "RH" = "RH",
+                           "ANN" = "ANN")),
       
       
       # Specification of range within an interval
