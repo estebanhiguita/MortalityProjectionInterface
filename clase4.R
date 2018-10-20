@@ -1,6 +1,6 @@
 library("splines")
 library("demography")
-AUSdata <- load("AUSdata.RData")
+load("AUSdata.RData")
 
 Ext <- AUSdata$pop$male
 mxt <- AUSdata$rate$male
