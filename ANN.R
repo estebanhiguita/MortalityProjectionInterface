@@ -8,6 +8,10 @@ library(keras)
 library(kerasR)
 library(plotly)
 library(tensorflow)
+library(pracma)
+library(CVXR)
+Sys.setenv("plotly_username"="estebanhiguita")
+Sys.setenv("plotly_api_key"="m8g4v0UMhQAf59c78TZ9")
 
 df <- read.csv(file = "mxt.csv")
 
@@ -71,3 +75,38 @@ model %>% fit(as.matrix(train), as.matrix(train_labels), epochs=200, batch_size=
 score <- model %>% evaluate(as.matrix(test), test_labels, batch_size = 32)
 
 sqrt(score) #rmse      
+
+#create mesh
+years = linspace(0,1.5,100)
+ages = linspace(0,1.5,100)
+
+mesh = meshgrid(years,ages)
+Y = mesh$X
+A = mesh$Y
+
+years = Reshape(Y,length(Y),1)
+ages = Reshape(A,length(A),1)
+
+X = cbind(ages , years)
+
+
+mxts <- data.frame(y = predict(model, as.matrix(X)))
+mxts %>% summary()
+
+dim(mxts)
+
+plot(mxts$y[1:110])
+
+M <- Reshape(a = mxts$y, n = 100, m = 100)
+
+p2 <- plot_ly(x = A, y = Y, z = M, type = 'surface', 
+             width = 600, height = 500)
+p3 <- plot_ly(df, x = ~df$Age, y = ~df$Year, z = ~df$Mxt, colors = c('#BF382A', '#0C4B8E')) %>%
+  add_markers() %>%
+  layout(scene = list(xaxis = list(title = 'Age'),
+                      yaxis = list(title = 'Year'),
+                      zaxis = list(title = 'Mxt')))
+
+p4 <- subplot(p2, p3)
+
+p4
